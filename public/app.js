@@ -529,16 +529,43 @@ async function descargarTicketPdf(folio) {
 // ===========================================================================
 // IMPRESIÓN DE ETIQUETA
 // ===========================================================================
+// Abre una ventana con selector Barras/QR, vista previa e impresión de la
+// etiqueta. La etiqueta se pega en el producto para inventariar y escanear.
 function imprimirEtiqueta(art) {
-  $('#printArea').innerHTML = `
-    <div class="print-label">
+  let fmt = 'barras'; // 'barras' | 'qr'
+  const urlImg = (f) => `/api/articulos/${art.id}/barcode.png${f === 'qr' ? '?fmt=qr' : ''}`;
+  abrirModal('Etiqueta · ' + art.nombre, `
+    <div class="scan-modes" role="tablist" style="margin-bottom:12px">
+      <button class="scan-mode active" data-fmt="barras" role="tab">Código de barras</button>
+      <button class="scan-mode" data-fmt="qr" role="tab">Código QR</button>
+    </div>
+    <div class="etq-preview">
       <div class="pl-nombre">${escapeHtml(art.nombre)}</div>
-      <img src="/api/articulos/${art.id}/barcode.png" alt="código" />
+      <img id="etqImg" class="barras" src="${urlImg('barras')}" alt="código" />
       <div class="pl-precio">${money(art.precio)}</div>
-    </div>`;
-  const img = $('#printArea img');
-  img.onload = () => window.print();
-  img.onerror = () => toast('No se pudo cargar el código');
+    </div>
+    <button class="btn btn-primary btn-block" id="btnImprimirEtq" style="margin-top:14px">Imprimir etiqueta</button>
+  `);
+  const mb = $('#modalBody');
+  const botones = $$('.scan-mode', mb);
+  botones.forEach((b) => b.addEventListener('click', () => {
+    fmt = b.dataset.fmt;
+    botones.forEach((x) => x.classList.toggle('active', x === b));
+    const img = $('#etqImg', mb);
+    img.className = fmt; // 'barras' | 'qr' (ajusta tamaño en vista previa)
+    img.src = urlImg(fmt);
+  }));
+  $('#btnImprimirEtq', mb).addEventListener('click', () => {
+    $('#printArea').innerHTML = `
+      <div class="print-label ${fmt === 'qr' ? 'qr' : ''}">
+        <div class="pl-nombre">${escapeHtml(art.nombre)}</div>
+        <img src="${urlImg(fmt)}" alt="código" />
+        <div class="pl-precio">${money(art.precio)}</div>
+      </div>`;
+    const img = $('#printArea img');
+    img.onload = () => window.print();
+    img.onerror = () => toast('No se pudo cargar el código');
+  });
 }
 
 // ===========================================================================

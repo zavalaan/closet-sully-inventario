@@ -214,15 +214,18 @@ app.put('/api/articulos/:id', auth, soloMaster, (req, res) => {
   res.json(db.prepare(`SELECT * FROM articulos WHERE id = ?`).get(art.id));
 });
 
-// Imagen de código de barras (pública: no expone datos sensibles, y <img> no puede
-// enviar cabecera de autorización). Solo dibuja el código Code128 del SKU.
+// Imagen del código del SKU para la etiqueta (pública: no expone datos
+// sensibles, y <img> no puede enviar cabecera de autorización).
+// ?fmt=qr genera un código QR; por defecto genera Code128 (barras).
 app.get('/api/articulos/:id/barcode.png', async (req, res) => {
   const art = db.prepare(`SELECT * FROM articulos WHERE id = ?`).get(req.params.id);
   if (!art) return res.status(404).send('No encontrado');
+  const esQR = req.query.fmt === 'qr';
+  const opciones = esQR
+    ? { bcid: 'qrcode', text: art.sku, scale: 4 }
+    : { bcid: 'code128', text: art.sku, scale: 3, height: 12, includetext: true, textxalign: 'center' };
   try {
-    const png = await bwipjs.toBuffer({
-      bcid: 'code128', text: art.sku, scale: 3, height: 12, includetext: true, textxalign: 'center',
-    });
+    const png = await bwipjs.toBuffer(opciones);
     res.set('Content-Type', 'image/png');
     res.send(png);
   } catch (e) {

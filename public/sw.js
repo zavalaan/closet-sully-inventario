@@ -1,7 +1,7 @@
 // Service worker: cachea el shell de la app para arranque offline, pero
 // prioriza la red para que las actualizaciones (nuevos despliegues) se vean
 // siempre. Sube el número de versión al cambiar archivos del shell.
-const CACHE = 'closet-sully-v4';
+const CACHE = 'closet-sully-v5';
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
