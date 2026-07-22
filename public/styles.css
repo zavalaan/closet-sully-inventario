@@ -170,6 +170,16 @@ body {
 .mov { display: flex; justify-content: space-between; font-size: 13.5px; padding: 9px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .mov .t-entrada { color: var(--sage); font-weight: 600; }
 .mov .t-salida { color: var(--danger); font-weight: 600; }
+.mov .t-ajuste { color: var(--brass); font-weight: 600; }
+
+/* Bitácora de movimientos: dos líneas (artículo + detalle de quién/cuándo) */
+.mov-bit { align-items: center; gap: 10px; }
+.mov-info { min-width: 0; }
+.mov-meta { color: var(--ink-soft); font-size: 12px; margin-top: 2px; }
+.bit-accion { font-weight: 600; }
+.bit-entrada { color: var(--sage); }
+.bit-salida { color: var(--danger); }
+.bit-ajuste { color: var(--brass); }
 
 /* ---- Tabbar ---- */
 .tabbar {

@@ -637,6 +637,33 @@ function imprimirEtiqueta(art) {
 // ===========================================================================
 // REPORTES (solo master)
 // ===========================================================================
+// Formatea una fila de la bitácora de movimientos: deja explícito QUÉ pasó
+// (entrada/salida/ajuste), QUIÉN lo hizo, CUÁNDO y el motivo.
+function bitacoraFila(m) {
+  const accion = m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'salida' ? 'Salida' : 'Ajuste';
+  const signo = m.tipo === 'entrada' ? '+' : m.tipo === 'salida' ? '−' : '±';
+  const verbo = m.tipo === 'entrada' ? 'añadió' : m.tipo === 'salida' ? 'descontó' : 'ajustó';
+  let fecha = '';
+  if (m.creado_en) {
+    const d = new Date(m.creado_en.replace(' ', 'T'));
+    fecha = isNaN(d) ? m.creado_en : d.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  const motivo = m.ticket_folio ? `Venta ${m.ticket_folio}` : (m.nota || '');
+  return `
+    <div class="mov mov-bit">
+      <div class="mov-info">
+        <div><strong>${escapeHtml(m.nombre)}</strong> <span class="sku">${escapeHtml(m.sku)}</span></div>
+        <div class="mov-meta">
+          <span class="bit-accion bit-${m.tipo}">${accion}</span> ·
+          ${verbo} <strong>${escapeHtml(m.usuario || '—')}</strong>
+          ${motivo ? ' · ' + escapeHtml(motivo) : ''}
+          ${fecha ? ' · ' + fecha : ''}
+        </div>
+      </div>
+      <span class="t-${m.tipo}" style="white-space:nowrap">${signo}${m.cantidad}</span>
+    </div>`;
+}
+
 async function cargarReportes() {
   if (sesion.rol !== 'master') return;
   try {
@@ -658,11 +685,8 @@ async function cargarReportes() {
     $('#reporteBajo').innerHTML = r.bajo_stock.length ? r.bajo_stock.map(cardArticulo).join('') : `<p class="hint">Todo con stock suficiente. 🎉</p>`;
 
     const movs = await api('/api/movimientos');
-    $('#reporteMovs').innerHTML = movs.slice(0, 40).map((m) => `
-      <div class="mov">
-        <span>${escapeHtml(m.nombre)} <span class="sku">${m.sku}</span> · ${escapeHtml(m.usuario || '—')}</span>
-        <span class="t-${m.tipo}">${m.tipo === 'entrada' ? '+' : m.tipo === 'salida' ? '−' : '±'}${m.cantidad}</span>
-      </div>`).join('') || `<p class="hint">Sin movimientos aún.</p>`;
+    $('#reporteMovs').innerHTML = movs.length ? movs.slice(0, 60).map(bitacoraFila).join('')
+      : `<p class="hint">Sin movimientos aún.</p>`;
 
     cargarUsuarios();
   } catch (e) { toast(e.message); }
