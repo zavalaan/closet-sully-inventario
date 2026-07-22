@@ -90,6 +90,10 @@
     <section id="view-venta" class="view">
       <div class="view-head"><h1>Venta</h1></div>
       <p class="hint">Escanea o agrega artículos, ajusta cantidades y genera el ticket. Cada ticket descuenta el stock y queda registrado a tu nombre.</p>
+      <div class="field" style="margin-bottom:12px">
+        <label>Cliente <span style="color:var(--ink-soft);font-weight:400">(opcional)</span></label>
+        <input id="ventaCliente" class="search" type="text" placeholder="Nombre del cliente" style="margin:0" />
+      </div>
       <div class="venta-agregar">
         <input id="ventaSku" class="search" type="text" placeholder="Código del artículo" />
         <button class="btn" id="btnVentaAgregar">Agregar</button>

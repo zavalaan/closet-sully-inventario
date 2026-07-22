@@ -373,42 +373,63 @@ async function onEscaneo(sku) {
   const ahora = Date.now();
   if (sku === ultimoEscaneo.sku && ahora - ultimoEscaneo.t < 2500) return;
   ultimoEscaneo = { sku, t: ahora };
+  // No abrir un nuevo resultado si ya hay una ventana emergente abierta.
+  if (!$('#modal').hidden) return;
   if (navigator.vibrate) navigator.vibrate(60);
   const sc = $('#scanner');
   if (sc) { sc.classList.add('detectado'); setTimeout(() => sc.classList.remove('detectado'), 700); }
   try {
     const art = await api('/api/articulos/sku/' + encodeURIComponent(sku));
-    mostrarResultadoEscaneo(art);
+    modalArticuloEscaneado(art);
   } catch (e) {
-    const puedeAlta = sesion.rol === 'master';
-    $('#scanResultado').innerHTML = `
-      <div class="card"><div class="info">
-        <div class="nombre">Código no registrado</div>
-        <div class="sku">${escapeHtml(sku)}</div>
-        <div class="meta">Este código no está en el catálogo.</div>
-        ${puedeAlta ? `<button class="btn btn-primary btn-sm" id="btnAltaScan" style="margin-top:8px">Dar de alta con este código</button>` : ''}
-      </div></div>`;
-    if (puedeAlta) $('#btnAltaScan').addEventListener('click', () => { formArticulo(); setTimeout(() => { $('#f_sku').value = sku; }, 30); });
+    modalCodigoNoRegistrado(sku);
   }
 }
 
-function mostrarResultadoEscaneo(a) {
+// Ventana emergente cuando el código SÍ está registrado: muestra el artículo
+// y las acciones disponibles según el rol (añadir a venta, entrada/salida).
+function modalArticuloEscaneado(a) {
   const low = a.stock <= a.stock_minimo;
   const esMaster = sesion.rol === 'master';
-  $('#scanResultado').innerHTML = `
-    <div class="card">${a.imagen ? `<div class="card-foto"><img src="${a.imagen}" alt="${escapeAttr(a.nombre)}" /></div>` : ''}<div class="info">
-      <div class="nombre">${escapeHtml(a.nombre)}</div>
-      <div class="sku">${a.sku}</div>
-      <div class="meta">${[a.categoria, a.talla, a.color].filter(Boolean).map(escapeHtml).join(' · ')}</div>
-      <div style="margin-top:6px"><span class="stock-pill ${low ? 'low' : ''}">${a.stock} en stock</span> · ${money(a.precio)}</div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        ${esMaster ? `<button class="btn btn-sm" data-mov="entrada">+ Entrada</button>` : ''}
-        <button class="btn btn-sm" data-mov="salida">− Salida</button>
-        <button class="btn btn-sm btn-ghost" id="scanAVenta">Agregar a venta</button>
+  abrirModal('Artículo encontrado', `
+    <div class="card" style="box-shadow:none;border:0;padding:0;margin-bottom:6px">
+      ${a.imagen ? `<div class="card-foto" style="width:64px;height:64px"><img src="${a.imagen}" alt="${escapeAttr(a.nombre)}" /></div>` : ''}
+      <div class="info">
+        <div class="nombre">${escapeHtml(a.nombre)}</div>
+        <div class="sku">${a.sku}</div>
+        <div class="meta">${[a.categoria, a.talla, a.color].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+        <div style="margin-top:6px"><span class="stock-pill ${low ? 'low' : ''}">${a.stock} en stock</span> · ${money(a.precio)}</div>
       </div>
-    </div></div>`;
+    </div>
+    <button class="btn btn-primary btn-block" id="scanAVenta" style="margin-top:12px">Agregar a venta</button>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      ${esMaster ? `<button class="btn btn-sm" data-mov="entrada">+ Entrada</button>` : ''}
+      <button class="btn btn-sm" data-mov="salida">− Salida</button>
+    </div>
+  `);
   $$('[data-mov]').forEach((b) => b.addEventListener('click', () => movimientoRapido(a, b.dataset.mov)));
-  $('#scanAVenta').addEventListener('click', () => { agregarAVenta(a); toast('Agregado a venta'); });
+  $('#scanAVenta').addEventListener('click', () => { agregarAVenta(a); toast('Agregado a venta'); cerrarModal(); });
+}
+
+// Ventana emergente cuando el código NO está registrado.
+function modalCodigoNoRegistrado(sku) {
+  const puedeAlta = sesion.rol === 'master';
+  abrirModal('Código no registrado', `
+    <p class="hint">El código <strong>${escapeHtml(sku)}</strong> no está en el catálogo.</p>
+    ${puedeAlta
+      ? `<button class="btn btn-primary btn-block" id="btnAltaScan" style="margin-top:12px">Registrar producto nuevo</button>`
+      : `<p class="hint" style="margin-top:8px">Pídele al administrador que lo dé de alta.</p>
+         <button class="btn btn-block" id="btnCerrarNoReg" style="margin-top:10px">Entendido</button>`}
+  `);
+  if (puedeAlta) {
+    $('#btnAltaScan').addEventListener('click', () => {
+      cerrarModal();
+      formArticulo();
+      setTimeout(() => { const el = $('#f_sku'); if (el) el.value = sku; }, 30);
+    });
+  } else {
+    $('#btnCerrarNoReg').addEventListener('click', cerrarModal);
+  }
 }
 
 async function movimientoRapido(art, tipo) {
@@ -417,7 +438,7 @@ async function movimientoRapido(art, tipo) {
   try {
     const actualizado = await api('/api/movimientos', { method: 'POST', body: { articulo_id: art.id, tipo, cantidad: cant } });
     toast(`${tipo === 'entrada' ? 'Entrada' : 'Salida'} registrada · stock: ${actualizado.stock}`);
-    mostrarResultadoEscaneo(actualizado);
+    modalArticuloEscaneado(actualizado); // refresca la ventana con el stock nuevo
   } catch (e) { toast(e.message); }
 }
 
@@ -461,8 +482,12 @@ function renderCarrito() {
 
 $('#btnGenerarTicket').addEventListener('click', async () => {
   try {
-    const ticket = await api('/api/tickets', { method: 'POST', body: { items: carrito.map((l) => ({ articulo_id: l.id, cantidad: l.cantidad })) } });
-    carrito = []; renderCarrito(); mostrarTicket(ticket);
+    const cliente = $('#ventaCliente').value.trim();
+    const ticket = await api('/api/tickets', { method: 'POST', body: {
+      items: carrito.map((l) => ({ articulo_id: l.id, cantidad: l.cantidad })),
+      cliente,
+    } });
+    carrito = []; renderCarrito(); $('#ventaCliente').value = ''; mostrarTicket(ticket);
   } catch (e) { toast(e.message); }
 });
 
@@ -470,7 +495,7 @@ function ticketHTML(ticket) {
   const filas = ticket.articulos.map((a) => `<tr><td>${a.cantidad}×</td><td>${escapeHtml(a.nombre)}</td><td style="text-align:right">${money(a.subtotal)}</td></tr>`).join('');
   return `
     <h4>Closet Sully</h4>
-    <div class="pt-meta">Folio ${ticket.folio}<br>${new Date().toLocaleString('es-MX')}<br>Atendió: ${escapeHtml(ticket.usuario || sesion.nombre)}</div>
+    <div class="pt-meta">Folio ${ticket.folio}<br>${new Date().toLocaleString('es-MX')}${ticket.cliente ? `<br>Cliente: ${escapeHtml(ticket.cliente)}` : ''}<br>Atendió: ${escapeHtml(ticket.usuario || sesion.nombre)}</div>
     <table><tbody>${filas}</tbody></table>
     <div class="pt-total"><span>Total</span><span>${money(ticket.total)}</span></div>
     <div class="pt-foot">¡Gracias por tu compra!</div>`;
@@ -478,8 +503,27 @@ function ticketHTML(ticket) {
 function mostrarTicket(ticket) {
   abrirModal('Ticket ' + ticket.folio, `
     <div class="print-ticket" style="border:1px solid var(--line);border-radius:10px;margin-bottom:14px">${ticketHTML(ticket)}</div>
-    <button class="btn btn-primary btn-block" id="btnImprimirTicket">Imprimir ticket</button>`);
+    <button class="btn btn-primary btn-block" id="btnPdfTicket">Descargar PDF</button>
+    <button class="btn btn-block btn-ghost" id="btnImprimirTicket" style="margin-top:8px">Imprimir ticket</button>`);
   $('#btnImprimirTicket').addEventListener('click', () => { $('#printArea').innerHTML = `<div class="print-ticket">${ticketHTML(ticket)}</div>`; window.print(); });
+  $('#btnPdfTicket').addEventListener('click', () => descargarTicketPdf(ticket.folio));
+}
+
+// Descarga el PDF del ticket. Se pide con el token (fetch → blob) para que el
+// endpoint siga protegido y luego se abre/guarda el archivo.
+async function descargarTicketPdf(folio) {
+  try {
+    const res = await fetch('/api/tickets/' + encodeURIComponent(folio) + '/pdf', {
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+    });
+    if (!res.ok) throw new Error('No se pudo generar el PDF');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ticket-${folio}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) { toast(e.message); }
 }
 
 // ===========================================================================
@@ -511,8 +555,12 @@ async function cargarReportes() {
 
     const tickets = await api('/api/tickets');
     $('#reporteTickets').innerHTML = tickets.length ? tickets.slice(0, 30).map((t) => `
-      <div class="mov"><span><strong>${t.folio}</strong> · ${escapeHtml(t.usuario || '—')}</span><span>${money(t.total)}</span></div>`).join('')
+      <div class="mov">
+        <span><strong>${t.folio}</strong>${t.cliente ? ' · ' + escapeHtml(t.cliente) : ''} <span class="sku">${escapeHtml(t.usuario || '—')}</span></span>
+        <span>${money(t.total)} <button class="btn btn-sm btn-ghost" data-pdf="${escapeAttr(t.folio)}" style="margin-left:6px">PDF</button></span>
+      </div>`).join('')
       : `<p class="hint">Sin tickets aún.</p>`;
+    $$('[data-pdf]').forEach((b) => b.addEventListener('click', () => descargarTicketPdf(b.dataset.pdf)));
 
     $('#reporteBajo').innerHTML = r.bajo_stock.length ? r.bajo_stock.map(cardArticulo).join('') : `<p class="hint">Todo con stock suficiente. 🎉</p>`;
 

@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const bwipjs = require('bwip-js');
+const PDFDocument = require('pdfkit');
 const { db, generarSkuPropio, hashPassword, verifyPassword } = require('./db');
 
 const app = express();
@@ -280,6 +281,7 @@ app.get('/api/movimientos', auth, soloMaster, (req, res) => {
 // ===========================================================================
 app.post('/api/tickets', auth, (req, res) => {
   const { items } = req.body || {};
+  const cliente = (req.body && req.body.cliente ? String(req.body.cliente).trim() : '') || null;
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'El ticket no tiene artículos' });
   }
@@ -297,9 +299,9 @@ app.post('/api/tickets', auth, (req, res) => {
       detalle.push({ sku: art.sku, nombre: art.nombre, cantidad: cant, precio: art.precio, subtotal });
     }
     db.prepare(
-      `INSERT INTO tickets (folio, total, articulos, usuario_id, usuario) VALUES (?, ?, ?, ?, ?)`
-    ).run(folio, total, JSON.stringify(detalle), req.user.id, req.user.nombre);
-    return { folio, total, articulos: detalle, usuario: req.user.nombre };
+      `INSERT INTO tickets (folio, total, articulos, usuario_id, usuario, cliente) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(folio, total, JSON.stringify(detalle), req.user.id, req.user.nombre, cliente);
+    return { folio, total, articulos: detalle, usuario: req.user.nombre, cliente };
   });
   try {
     res.status(201).json(crear());
@@ -316,10 +318,64 @@ app.get('/api/tickets/:folio', auth, (req, res) => {
   res.json(t);
 });
 
+// Ticket en PDF descargable (ambos roles). Formato de recibo estrecho (80 mm).
+app.get('/api/tickets/:folio/pdf', auth, (req, res) => {
+  const t = db.prepare(`SELECT * FROM tickets WHERE folio = ?`).get(req.params.folio);
+  if (!t) return res.status(404).json({ error: 'Ticket no encontrado' });
+  const items = JSON.parse(t.articulos);
+
+  const money = (n) => '$' + (Number(n) || 0).toFixed(2);
+  const ancho = 226; // ~80 mm en puntos
+  // Altura dinámica para que el recibo se ajuste al contenido (sin hoja vacía).
+  const alto = 150 + items.length * 16 + (t.cliente ? 14 : 0) + 90;
+  const doc = new PDFDocument({ size: [ancho, alto], margin: 16 });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="ticket-${t.folio}.pdf"`);
+  doc.pipe(res);
+
+  const cont = ancho - 32; // ancho útil
+  doc.font('Helvetica-Bold').fontSize(15).text('Closet Sully', { align: 'center' });
+  doc.font('Helvetica').fontSize(9).fillColor('#555')
+    .text('Ticket de venta', { align: 'center' });
+  doc.moveDown(0.6).fillColor('#000');
+
+  doc.fontSize(8.5).fillColor('#333');
+  doc.text(`Folio: ${t.folio}`);
+  doc.text(`Fecha: ${new Date(t.creado_en || Date.now()).toLocaleString('es-MX')}`);
+  if (t.cliente) doc.text(`Cliente: ${t.cliente}`);
+  doc.text(`Atendió: ${t.usuario || '—'}`);
+  doc.fillColor('#000').moveDown(0.5);
+
+  // Línea separadora
+  const linea = () => { doc.moveTo(16, doc.y).lineTo(16 + cont, doc.y).strokeColor('#ccc').stroke(); doc.moveDown(0.3); };
+  linea();
+
+  doc.fontSize(9);
+  for (const a of items) {
+    const izq = `${a.cantidad}x ${a.nombre}`;
+    const der = money(a.subtotal);
+    const y = doc.y;
+    doc.font('Helvetica').text(izq, 16, y, { width: cont - 55 });
+    doc.text(der, 16, y, { width: cont, align: 'right' });
+    doc.moveDown(0.2);
+  }
+  doc.moveDown(0.2); linea();
+
+  const yT = doc.y;
+  doc.font('Helvetica-Bold').fontSize(12).text('Total', 16, yT, { width: cont - 70 });
+  doc.text(money(t.total), 16, yT, { width: cont, align: 'right' });
+
+  doc.moveDown(1).font('Helvetica').fontSize(8.5).fillColor('#555')
+    .text('¡Gracias por tu compra!', { align: 'center' });
+
+  doc.end();
+});
+
 // Historial de tickets con nombre de quien descontó (SOLO MASTER)
 app.get('/api/tickets', auth, soloMaster, (req, res) => {
   const rows = db.prepare(
-    `SELECT folio, total, usuario, creado_en FROM tickets ORDER BY creado_en DESC LIMIT 100`
+    `SELECT folio, total, usuario, cliente, creado_en FROM tickets ORDER BY creado_en DESC LIMIT 100`
   ).all();
   res.json(rows);
 });

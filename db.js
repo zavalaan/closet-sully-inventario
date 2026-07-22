@@ -70,6 +70,12 @@ if (!colsArticulos.includes('imagen')) {
   db.exec(`ALTER TABLE articulos ADD COLUMN imagen TEXT`);
 }
 
+// Nombre del cliente asociado a cada ticket de venta (opcional).
+const colsTickets = db.prepare(`PRAGMA table_info(tickets)`).all().map((c) => c.name);
+if (!colsTickets.includes('cliente')) {
+  db.exec(`ALTER TABLE tickets ADD COLUMN cliente TEXT`);
+}
+
 // --- Contraseñas (scrypt, sin dependencias externas) -----------------------
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
