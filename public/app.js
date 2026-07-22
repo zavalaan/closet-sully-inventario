@@ -140,7 +140,7 @@ function abrirModal(titulo, htmlBody) {
   $('#modalBody').innerHTML = htmlBody;
   $('#modal').hidden = false;
 }
-function cerrarModal() { $('#modal').hidden = true; }
+function cerrarModal() { $('#modal').hidden = true; detenerEscanerVenta(); }
 $('#modalClose').addEventListener('click', cerrarModal);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') cerrarModal(); });
 
@@ -458,6 +458,72 @@ async function agregarPorSku(sku) {
 }
 $('#btnVentaAgregar').addEventListener('click', () => { const v = $('#ventaSku').value.trim(); if (v) { agregarPorSku(v); $('#ventaSku').value = ''; } });
 $('#ventaSku').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btnVentaAgregar').click(); });
+
+// --- Escanear para agregar a la venta (cámara dentro de la vista Venta) ------
+let html5qrVenta = null;
+let ultimoEscaneoVenta = { sku: '', t: 0 };
+
+// Acepta barras y QR, porque las etiquetas de la tienda pueden ser de cualquiera.
+function formatosVenta() {
+  const F = window.Html5QrcodeSupportedFormats;
+  if (!F) return undefined;
+  return [F.CODE_128, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.ITF, F.QR_CODE];
+}
+
+async function detenerEscanerVenta() {
+  if (html5qrVenta) {
+    try { await html5qrVenta.stop(); await html5qrVenta.clear(); } catch (_) {}
+    html5qrVenta = null;
+  }
+}
+
+async function abrirEscanerVenta() {
+  if (!window.isSecureContext) {
+    toast('La cámara necesita HTTPS. Abre la app por https:// o localhost.');
+    return;
+  }
+  abrirModal('Escanear para agregar', `
+    <div id="readerVenta" class="reader" style="border-radius:12px;overflow:hidden;background:#000;min-height:220px"></div>
+    <p class="hint" id="ventaScanMsg" style="margin-top:10px">Apunta al código; cada lectura se agrega a la venta.</p>
+    <button class="btn btn-primary btn-block" id="btnVentaScanListo">Listo</button>
+  `);
+  $('#btnVentaScanListo').addEventListener('click', cerrarModal);
+
+  html5qrVenta = new Html5Qrcode('readerVenta', {
+    formatsToSupport: formatosVenta(),
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    verbose: false,
+  });
+  const config = {
+    fps: 15,
+    qrbox: (w, h) => { const b = Math.floor(Math.min(w, h) * 0.85); return { width: b, height: Math.max(90, Math.floor(b * 0.6)) }; },
+    aspectRatio: 1.333,
+  };
+  try {
+    await html5qrVenta.start({ facingMode: 'environment' }, config, (t) => onEscaneoVenta(t), () => {});
+  } catch (e) {
+    toast('No se pudo abrir la cámara: ' + e);
+    await detenerEscanerVenta();
+  }
+}
+
+async function onEscaneoVenta(sku) {
+  const ahora = Date.now();
+  if (sku === ultimoEscaneoVenta.sku && ahora - ultimoEscaneoVenta.t < 1500) return;
+  ultimoEscaneoVenta = { sku, t: ahora };
+  if (navigator.vibrate) navigator.vibrate(50);
+  const msg = $('#ventaScanMsg');
+  try {
+    const art = await api('/api/articulos/sku/' + encodeURIComponent(sku));
+    agregarAVenta(art);
+    if (msg) msg.textContent = `✓ Agregado: ${art.nombre}`;
+    toast('Agregado: ' + art.nombre);
+  } catch (e) {
+    if (msg) msg.textContent = `Código no registrado: ${sku}`;
+  }
+}
+
+$('#btnVentaEscanear').addEventListener('click', abrirEscanerVenta);
 
 function renderCarrito() {
   const cont = $('#carrito');
