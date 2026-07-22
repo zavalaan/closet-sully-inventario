@@ -1,0 +1,14 @@
+# Despliegue de Closet Sully en Render (Blueprint).
+# Render lee este archivo y crea el servicio automáticamente.
+services:
+  - type: web
+    name: closet-sully-inventario
+    runtime: node
+    plan: free
+    # Compila dependencias nativas (better-sqlite3) y siembra datos demo.
+    buildCommand: npm install && npm run seed
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+    autoDeploy: true

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#241E24" />
+  <title>Closet Sully · Inventario</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="login" class="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.5a1.6 1.6 0 1 0 1.4 2.4L21 15H3l7.6-9.1"/><path d="M3 15h18l-1 4.5H4z"/>
+          </svg>
+        </span>
+        <span class="brand-name">Closet <em>Sully</em></span>
+      </div>
+      <p class="login-sub">Control de inventario</p>
+      <div class="field"><label>Usuario</label><input id="loginUser" autocomplete="username" placeholder="tu usuario" /></div>
+      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••" /></div>
+      <button class="btn btn-primary btn-block" id="loginBtn">Entrar</button>
+      <div id="loginError" class="login-error"></div>
+    </div>
+  </div>
+
+  <!-- Encabezado -->
+  <header class="topbar" hidden>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3.5a1.6 1.6 0 1 0 1.4 2.4L21 15H3l7.6-9.1"/><path d="M3 15h18l-1 4.5H4z"/>
+        </svg>
+      </span>
+      <span class="brand-name">Closet <em>Sully</em></span>
+    </div>
+    <button id="userBtn" class="user-chip" title="Cuenta">
+      <span id="userName">—</span>
+      <span id="userRol" class="rol-badge"></span>
+    </button>
+  </header>
+
+  <main id="app" hidden>
+    <!-- CATÁLOGO -->
+    <section id="view-catalogo" class="view active">
+      <div class="view-head">
+        <h1>Catálogo</h1>
+        <button class="btn btn-primary only-master" id="btnNuevo">+ Nuevo artículo</button>
+      </div>
+      <input id="buscarCatalogo" class="search" type="search" placeholder="Buscar por nombre, código o categoría…" />
+      <div id="listaCatalogo" class="cards"></div>
+    </section>
+
+    <!-- ESCANEAR -->
+    <section id="view-escanear" class="view">
+      <div class="view-head"><h1>Escanear</h1></div>
+      <p class="hint">Elige el tipo de código, apunta la cámara y registra movimientos o agrégalo a una venta.</p>
+      <div class="scan-modes" role="tablist">
+        <button class="scan-mode active" data-modo="barras" role="tab">Código de barras</button>
+        <button class="scan-mode" data-modo="qr" role="tab">Código QR</button>
+      </div>
+      <div id="scanner" class="scanner">
+        <div id="reader" class="reader"></div>
+        <div class="scan-frame" aria-hidden="true">
+          <div class="scan-box">
+            <span class="c tl"></span><span class="c tr"></span>
+            <span class="c bl"></span><span class="c br"></span>
+            <div class="scan-line"></div>
+          </div>
+          <p class="scan-status">Centra el código dentro del recuadro</p>
+        </div>
+      </div>
+      <div class="scan-controls">
+        <button class="btn" id="btnScanStart">Encender cámara</button>
+        <button class="btn btn-ghost" id="btnScanStop" disabled>Apagar</button>
+        <input id="skuManual" class="search" type="text" placeholder="…o teclea el código manualmente" />
+        <button class="btn" id="btnBuscarSku">Buscar</button>
+      </div>
+      <div id="scanResultado"></div>
+    </section>
+
+    <!-- VENTA -->
+    <section id="view-venta" class="view">
+      <div class="view-head"><h1>Venta</h1></div>
+      <p class="hint">Escanea o agrega artículos, ajusta cantidades y genera el ticket. Cada ticket descuenta el stock y queda registrado a tu nombre.</p>
+      <div class="venta-agregar">
+        <input id="ventaSku" class="search" type="text" placeholder="Código del artículo" />
+        <button class="btn" id="btnVentaAgregar">Agregar</button>
+      </div>
+      <div id="carrito" class="carrito"></div>
+      <div class="venta-total"><span>Total</span><strong id="ventaTotal">$0.00</strong></div>
+      <button class="btn btn-primary btn-block" id="btnGenerarTicket" disabled>Generar ticket</button>
+    </section>
+
+    <!-- REPORTES (solo master) -->
+    <section id="view-reportes" class="view">
+      <div class="view-head"><h1>Reportes</h1></div>
+      <div id="reporteResumen" class="stats"></div>
+
+      <h2 class="subhead">Tickets recientes</h2>
+      <div id="reporteTickets" class="movs"></div>
+
+      <h2 class="subhead">Bajo inventario</h2>
+      <div id="reporteBajo" class="cards"></div>
+
+      <h2 class="subhead">Movimientos recientes</h2>
+      <div id="reporteMovs" class="movs"></div>
+
+      <h2 class="subhead">Usuarios</h2>
+      <button class="btn btn-primary btn-sm" id="btnNuevoUsuario">+ Nuevo usuario</button>
+      <div id="listaUsuarios" class="movs" style="margin-top:12px"></div>
+    </section>
+  </main>
+
+  <!-- Navegación inferior -->
+  <nav class="tabbar" hidden>
+    <button class="tab active" data-view="catalogo"><span>Catálogo</span></button>
+    <button class="tab" data-view="escanear"><span>Escanear</span></button>
+    <button class="tab" data-view="venta"><span>Venta</span></button>
+    <button class="tab only-master" data-view="reportes"><span>Reportes</span></button>
+  </nav>
+
+  <!-- Modal -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle">Título</h3>
+        <button id="modalClose" class="icon-btn" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="printArea"></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

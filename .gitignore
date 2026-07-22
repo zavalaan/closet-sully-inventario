@@ -1,0 +1,6 @@
+node_modules/
+closet-sully.db
+closet-sully.db-wal
+closet-sully.db-shm
+*.log
+.DS_Store

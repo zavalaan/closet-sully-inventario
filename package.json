@@ -1,0 +1,19 @@
+{
+  "name": "closet-sully-inventario",
+  "version": "1.0.0",
+  "description": "Sistema de inventario a la medida para Closet Sully — control de entradas/salidas, escaneo de código de barras por cámara, generación de código propio, tickets virtuales y etiquetas térmicas.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "bwip-js": "^4.5.1",
+    "express": "^4.21.0"
+  }
+}
